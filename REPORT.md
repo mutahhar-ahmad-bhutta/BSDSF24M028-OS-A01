@@ -65,3 +65,32 @@ In `main.o`, these same functions were marked `U` (undefined), because `main.c` 
 This shows that in static linking, the linker copies the actual code of the functions from `libmyutils.a` into the final executable. After linking, the program does not need the library anymore to run. I also checked this with `readelf -d bin/client_static`: the only needed shared library was `libc.so.6`, and `libmyutils` was not listed.
 
 One interesting thing I noticed is that `printf` still showed `U` in `client_static`. This is because only my own library was linked statically. The standard C library (which contains `printf`, `fopen` and `malloc`) is still linked dynamically, and the operating system loads it when the program starts.
+
+## Feature 4: Dynamic Library
+
+### Q1. What is Position-Independent Code (`-fPIC`) and why is it a fundamental requirement for creating shared libraries?
+
+Position-Independent Code (PIC) is machine code that works correctly no matter where in memory it is loaded. It does not use fixed memory addresses. Instead, it uses addresses that are relative to its own position, like saying "go 200 bytes ahead from here" instead of "go to address 5000". The `-fPIC` option tells gcc to generate this kind of code.
+
+This is required for shared libraries because a shared library (`.so`) is loaded into memory when a program starts, and it can end up at a different address in every program that uses it. If the library used fixed addresses, those addresses would be wrong wherever it was loaded somewhere else. With PIC, the code works at any address without being changed.
+
+Because the code never needs to be modified, the operating system can keep only one copy of the library in RAM and share it between all the programs that use it. This is the main memory advantage of shared libraries. In my Makefile, I added `-fPIC` to `CFLAGS` so that the object files could be used to build `libmyutils.so`.
+
+### Q2. Explain the difference in file size between your static and dynamic clients. Why does this difference exist?
+
+From `ls -l bin/`:
+
+- `client_static`: ____ bytes
+- `client_dynamic`: ____ bytes
+
+`client_dynamic` is smaller. In static linking, the linker copies the code of my library functions (`mystrlen`, `mygrep`, etc.) into the executable. In dynamic linking, the code is not copied. The executable only stores a note saying that it needs `libmyutils.so`, and the functions are loaded from the `.so` file when the program runs. I confirmed this with `nm`: in `client_static` my functions are marked `T` (code inside), and in `client_dynamic` they are marked `U` (code outside).
+
+In my case the difference is small, because my library is very small (only a few functions) and Linux stores executables in fixed-size blocks. To see the real effect, I also built a fully static version with `gcc -static`, which copies the whole C library (`printf`, `malloc`, etc.) into the program as well. That file was ____ bytes, which is much bigger. This shows that the more library code is used, the bigger the saving from dynamic linking.
+
+### Q3. What is the `LD_LIBRARY_PATH` environment variable? Why was it necessary to set it for your program to run, and what does this tell you about the responsibilities of the operating system's dynamic loader?
+
+`LD_LIBRARY_PATH` is an environment variable that contains a list of extra folders where the dynamic loader should look for shared libraries. The loader checks these folders before the standard system folders like `/lib` and `/usr/lib`.
+
+When I first ran `./bin/client_dynamic`, I got the error "cannot open shared object file". This happened because the `-L../lib` flag only helps the linker at build time. The executable only stores the name `libmyutils.so`, not where the file is. At run time, the dynamic loader searched only the standard system folders, and my library is not there, so it failed. After I ran `export LD_LIBRARY_PATH=$PWD/lib:$LD_LIBRARY_PATH`, the loader also searched my project's `lib` folder, found the library and the program ran. Using `ldd bin/client_dynamic`, I could see that `libmyutils.so` was loaded from my `lib` folder.
+
+This shows that the dynamic loader has an important job every time a dynamically linked program starts. It must find every shared library the program needs, load them into memory, and connect the program's function calls to the right code in those libraries. If it cannot find a library, the program cannot run at all, even though the executable itself is fine.
