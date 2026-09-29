@@ -1,0 +1,5 @@
+# Generated files (recreated by make)
+obj/*.o
+bin/client*
+lib/*.a
+lib/*.so
