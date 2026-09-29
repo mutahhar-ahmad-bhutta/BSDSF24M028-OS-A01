@@ -80,12 +80,12 @@ Because the code never needs to be modified, the operating system can keep only 
 
 From `ls -l bin/`:
 
-- `client_static`: ____ bytes
-- `client_dynamic`: ____ bytes
+- `client_static`: 16840  bytes
+- `client_dynamic`: 16448 bytes
 
 `client_dynamic` is smaller. In static linking, the linker copies the code of my library functions (`mystrlen`, `mygrep`, etc.) into the executable. In dynamic linking, the code is not copied. The executable only stores a note saying that it needs `libmyutils.so`, and the functions are loaded from the `.so` file when the program runs. I confirmed this with `nm`: in `client_static` my functions are marked `T` (code inside), and in `client_dynamic` they are marked `U` (code outside).
 
-In my case the difference is small, because my library is very small (only a few functions) and Linux stores executables in fixed-size blocks. To see the real effect, I also built a fully static version with `gcc -static`, which copies the whole C library (`printf`, `malloc`, etc.) into the program as well. That file was ____ bytes, which is much bigger. This shows that the more library code is used, the bigger the saving from dynamic linking.
+In my case the difference is small, because my library is very small (only a few functions) and Linux stores executables in fixed-size blocks. To see the real effect, I also built a fully static version with `gcc -static`, which copies the whole C library (`printf`, `malloc`, etc.) into the program as well. That file was 778368 bytes, which is much bigger. This shows that the more library code is used, the bigger the saving from dynamic linking.
 
 ### Q3. What is the `LD_LIBRARY_PATH` environment variable? Why was it necessary to set it for your program to run, and what does this tell you about the responsibilities of the operating system's dynamic loader?
 
